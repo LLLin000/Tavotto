@@ -71,10 +71,18 @@ export function hasScheduledRender(panelId: string): boolean {
 }
 
 /**
+ * 外部托管面板（renderOwner==='figpact'）：legacy 渲染一律跳过。显式声明才认，
+ * 不从文件名 / fileId 推断。Bridge 侧自带同名 helper，各守各的路径。
+ */
+export const isFigpactPanel = (panel: Pick<PanelObject, 'renderOwner'>): boolean =>
+  panel.renderOwner === 'figpact'
+
+/**
  * 请求渲染。同一面板的连续请求会被合并：debounce 期内只保留最后一次，
  * 真正发出后由 renderStore 的 busy/queued 再兜一层。
  */
 export function requestRender(panel: PanelObject, immediate: boolean | RenderPolicy = false) {
+  if (isFigpactPanel(panel)) return
   const policy = policyOf(immediate)
   const store = useRenderStore.getState()
   const key = renderKeyOf(panel)
@@ -120,7 +128,7 @@ export function flushRender(panelId: string) {
   // 上一帧的，拿它的 overrides 去渲染就等于把刚改的那一版丢了（而挂起的
   // 计时器已经被清掉，同步器又因为 wantPatches 相等而跳过 → 永远画不出来）
   const panel = useDocumentStore.getState().doc.objects.find((o) => o.id === panelId)
-  if (panel?.type !== 'panel') return
+  if (panel?.type !== 'panel' || isFigpactPanel(panel)) return
   const store = useRenderStore.getState()
   cancelScheduledRender(panelId)
   const want = JSON.stringify(panel.overrides)

@@ -917,5 +917,28 @@
     "rulers": "Rulers",
     "grid": "Grid",
     "safeArea": "Safe area"
+  },
+  "figpact": {
+    "connect": "Live",
+    "capture": "Capture",
+    "showFrame": "Show frame",
+    "disconnect": "Disconnect",
+    "dialogTitle": "Connect to a Figpact live session",
+    "dialogHint": "Paste the connect string printed by the live server. The token stays in memory only.",
+    "dialogLabel": "Connect string",
+    "dialogPlaceholder": "http://127.0.0.1:<port>/#token=…",
+    "dialogConnect": "Connect",
+    "dialogCancel": "Cancel",
+    "statusOffline": "Live: off",
+    "statusConnecting": "Live: connecting…",
+    "statusReady": "Live: ready",
+    "statusStale": "Live: changed — capture needed",
+    "statusCapturing": "Live: capturing…",
+    "statusFraming": "Live: framing…",
+    "statusError": "Live: error",
+    "errorPrefix": "",
+    "frameShown": "Frame {{revision}}… shown",
+    "nativeSizeChanged": "Figure size changed; layout kept as-is.",
+    "imageFailed": "Live image failed its check; capture again."
   }
 }

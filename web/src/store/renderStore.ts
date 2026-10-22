@@ -1065,6 +1065,8 @@ export function panelRender(
   state: Pick<RenderState, 'byKey' | 'latest'>,
   panel: PanelObject,
 ): PanelRender | undefined {
+  // 托管面板没有 legacy 渲染态：任何 legacy 回退一律不给，绝不冒充。
+  if (panel.renderOwner === 'figpact') return undefined
   const own = state.byKey[renderKeyOf(panel)]
   const issue = artifactValidationIssue(panel)
   if (issue) return invalidArtifactRender(issue, own)
@@ -1111,6 +1113,8 @@ export function exactPanelRender(
   state: Pick<RenderState, 'byKey'>,
   panel: PanelObject,
 ): PanelRender | null {
+  // 托管面板没有 legacy 几何权威：写路径一律停摆。
+  if (panel.renderOwner === 'figpact') return null
   return exactOf(state.byKey[renderKeyOf(panel)], panel)
 }
 
@@ -1207,6 +1211,8 @@ export function panelDisplayView(
 ): PanelDisplayView {
   const currentKey = renderKeyOf(panel)
   const own = state.byKey[currentKey]
+  // 托管面板不在 legacy 显示里：绝不拿别人的图冒充。
+  if (panel.renderOwner === 'figpact') return { kind: 'empty', currentKey, sourceKey: null, svg: null, render: own }
   const exact = exactOf(own, panel)
   if (exact?.svg) {
     return {
@@ -1276,7 +1282,7 @@ export function usePanelRender(panel: PanelObject | null | undefined): PanelRend
     panel && !Object.hasOwn(panel, 'artifactValidation') ? s.byKey[s.latest[panel.fileId] ?? ''] : undefined,
   )
   const issue = panel ? artifactValidationIssue(panel) : null
-  return useMemo(() => issue ? invalidArtifactRender(issue, own) : (own?.manifest ? own : mergeRender(own, prev)), [own, prev, issue])
+  return useMemo(() => panel?.renderOwner === 'figpact' ? undefined : (issue ? invalidArtifactRender(issue, own) : (own?.manifest ? own : mergeRender(own, prev))), [own, prev, issue, panel?.renderOwner])
 }
 
 /**
@@ -1314,7 +1320,7 @@ export function usePanelDisplayView(panel: PanelObject | null | undefined): Pane
 export function useExactPanelRender(panel: PanelObject | null | undefined): PanelRender | null {
   const own = useRenderStore((s) => (panel ? s.byKey[renderKeyOf(panel)] : undefined))
   return useMemo(
-    () => panel ? exactOf(own, panel) : null,
+    () => panel && panel.renderOwner !== 'figpact' ? exactOf(own, panel) : null,
     [own, panel],
   )
 }

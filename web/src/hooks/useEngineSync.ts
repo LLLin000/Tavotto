@@ -51,6 +51,8 @@ export function renderTargets(
   const targets: PanelObject[] = []
   for (const o of objects) {
     if (o.type !== 'panel' || !o.script) continue
+    // 托管面板（renderOwner==='figpact'）：legacy 调度一律跳过，只认显式声明。
+    if (o.renderOwner === 'figpact') continue
     // runtime 面板（ADR 0013 lazy rehydrate）：**重开文档绝不自动执行脚本**。
     // 只有「正在编辑」或「本会话已经跑过一次（latest 里有它）」才进同步——
     // 带着 overrides 重开的文档先显示 cache 占位，进入编辑 / 显式重跑那一刻
@@ -221,7 +223,9 @@ function useEngineRenderSync() {
   useEffect(
     () =>
       registerOverrideStamper((draft, base, next) =>
-        stampOverrideIdentities(draft, base, next, (panel) => panelRender(useRenderStore.getState(), panel)?.manifest),
+        stampOverrideIdentities(draft, base, next, (panel) =>
+          // 托管面板没有 legacy manifest：身份抄写一律跳过。
+          panel.renderOwner === 'figpact' ? null : panelRender(useRenderStore.getState(), panel)?.manifest),
       ),
     [],
   )
@@ -246,6 +250,8 @@ function nativeSizeFixes(
   const fixes: NativeSizeFix[] = []
   for (const o of objects) {
     if (o.type !== 'panel' || artifactValidationIssue(o) || artifactEntryPending(o.id)) continue
+    // 托管面板：legacy 图幅反哺一律跳过，nativeW/H 只认显式托管帧。
+    if (o.renderOwner === 'figpact') continue
     if (!o.overrides.length && o.fileKind === 'raster' && /\.png$/i.test(o.fileId) && useUiStore.getState().elementPanelId !== o.id && !useRenderStore.getState().tracked[o.fileId]) continue
     const size = byKey[renderKeyOf(o)]?.manifest?.size_mm
     if (!size) continue

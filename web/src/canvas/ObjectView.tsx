@@ -1,13 +1,17 @@
-import { memo } from 'react'
-import { msg } from '@/i18n'
+import { memo, useRef, useState, type CSSProperties } from 'react'
+import { msg, t as translate } from '@/i18n'
 import { perfCount } from '@/perf/core'
 import { useInteractionStore } from '@/store/interactionStore'
 import { useSelectionStore } from '@/store/selectionStore'
 import { beginCrop, enterElementEdit, groupMates } from '@/store/actions'
 import { useUiStore } from '@/store/uiStore'
 import { mmToWorld, useViewportStore } from '@/store/viewportStore'
-import type { CanvasObject } from '@/types/document'
-import { isLinear, objectRotation, panelRotation } from '@/types/document'
+import { useProjectStore } from '@/store/projectStore'
+import { useDocumentStore } from '@/store/documentStore'
+import type { CanvasObject, PanelObject } from '@/types/document'
+import { isLinear, objectRotation, panelRotation, rotationSwaps } from '@/types/document'
+import { panelContentTransform, panelTransformCss } from '@/lib/panelTransform'
+import { useFigpactStore } from '@/store/figpactStore'
 import { PATH_HIT_SHAPES } from '@/lib/shapeGeometry'
 import { startMoveDrag } from './interactions'
 import { openQuickEdit } from './quickEditStore'
@@ -99,6 +103,8 @@ export const ObjectView = memo(function ObjectView({ obj }: { obj: CanvasObject 
     e.stopPropagation()
     if (obj.type === 'text') useUiStore.getState().setEditingText(obj.id)
     else if (obj.type === 'panel') {
+      // 托管面板只读：绝不进图内编辑 / 裁剪，页面级拖选照旧。
+      if (obj.renderOwner === 'figpact') return
       // 权威同步中图内命中层暂时让位，双击会落到这里。已经在编辑的面板
       // 不能再进一次：enterElementEdit 会清掉图内选区，⌥ 双击也会误选整图。
       if (useUiStore.getState().elementPanelId === obj.id) return
@@ -148,10 +154,119 @@ export const ObjectView = memo(function ObjectView({ obj }: { obj: CanvasObject 
         cursor: editing ? 'text' : 'default',
       }}
     >
-      {obj.type === 'panel' && <PanelView obj={obj} />}
+      {obj.type === 'panel' && obj.renderOwner === 'figpact'
+        ? <FigpactManagedView obj={obj} />
+        : obj.type === 'panel' ? <PanelView obj={obj} /> : null}
       {obj.type === 'text' && <TextView obj={obj} />}
       {obj.type === 'arrow' && <ArrowView obj={obj} hit={hit} />}
       {obj.type === 'shape' && <ShapeView obj={obj} hit={hit} />}
     </div>
   )
 })
+/** 托管面板的小视图：与 PanelView 同一套裁剪 / 旋转 / 翻转 / 透明度语义，只读。 */
+function FigpactManagedView({ obj }: { obj: PanelObject }) {
+  const binding = useFigpactStore((s) => s.binding)
+  const frame = useFigpactStore((s) => s.frame)
+  const status = useFigpactStore((s) => s.status)
+  const [decodeFailed, setDecodeFailed] = useState(false)
+  const staleCache = useRef<{ key: string; png: string } | null>(null)
+  const error = useFigpactStore((s) => s.error)
+  const current = !!binding && !!frame && frame.frame_revision === binding.frame_revision &&
+    binding.panel_id === obj.id &&
+    binding.preview_ref === `sha256:${frame.png_sha256}` &&
+    binding.scene_ref === `sha256:${frame.scene_sha256}`
+  const crop = obj.crop
+  const rot = panelRotation(obj)
+  const boxW = mmToWorld(obj.w)
+  const boxH = mmToWorld(obj.h)
+  const contentW = rotationSwaps(rot) ? boxH : boxW
+  const contentH = rotationSwaps(rot) ? boxW : boxH
+  const layout = crop
+    ? {
+        width: contentW / crop.w,
+        height: contentH / crop.h,
+        left: -(crop.x / crop.w) * contentW,
+        top: -(crop.y / crop.h) * contentH,
+      }
+    : { width: contentW, height: contentH, left: 0, top: 0 }
+  const contentStyle: CSSProperties = {
+    width: contentW,
+    height: contentH,
+    left: (boxW - contentW) / 2,
+    top: (boxH - contentH) / 2,
+    transform: panelTransformCss(panelContentTransform(obj)),
+    opacity: obj.opacity ?? undefined,
+  }
+  const projectId = useProjectStore((s) => s.project?.id ?? null)
+  const documentId = useDocumentStore((s) => s.documentId)
+  const canvasId = useDocumentStore((s) => s.activeCanvasId)
+  const sourceKey = `${projectId ?? ''}|${documentId ?? ''}|${canvasId ?? ''}|${obj.id}|${obj.fileId}|${obj.script ?? ''}|${obj.figpact?.config ?? ''}|${obj.figpact?.scope ?? ''}|${JSON.stringify(obj.overrides)}`
+  const stale = !current || status === 'stale'
+  const badgeKey = !current || !frame
+    ? 'figpact.statusStale'
+    : decodeFailed
+      ? 'figpact.imageFailed'
+      : status === 'error'
+        ? 'figpact.statusError'
+        : null
+  if (current && frame) staleCache.current = { key: sourceKey, png: frame.png_base64 }
+  const cached = !current && staleCache.current?.key === sourceKey ? staleCache.current.png : null
+  const src = current && frame
+    ? `data:image/png;base64,${frame.png_base64}`
+    : cached
+      ? `data:image/png;base64,${cached}`
+      : ''
+  const showingStaleCache = !current && !!cached
+  const imgKey = binding && frame && current
+    ? `${binding.snapshot_revision}:${binding.request_id}:${binding.frame_revision}`
+    : showingStaleCache ? `stale:${sourceKey}` : ''
+  return (
+    <div
+      className="absolute inset-0 overflow-hidden"
+      data-display={current && !stale ? 'figpact' : 'figpact-stale'}
+      data-figpact-binding={current ? (binding?.request_id ?? null) : null}
+      data-figpact-frame={current ? (frame?.frame_revision ?? null) : null}
+      data-figpact-preview={current ? (binding?.preview_ref ?? null) : null}
+      data-figpact-scene={current ? (binding?.scene_ref ?? null) : null}
+      data-figpact-panel={obj.id}
+    >
+      <div className="absolute overflow-hidden" style={contentStyle}>
+        {src ? (
+          <img
+            key={imgKey}
+            src={src}
+            alt={obj.name ?? obj.fileId}
+            className="absolute select-none"
+            style={{ ...layout, maxWidth: 'none' }}
+            draggable={false}
+            onLoad={(e) => {
+              if (showingStaleCache) return
+              const live = useFigpactStore.getState()
+              const b = live.binding
+              const f = live.frame
+              if (!b || !f || b.request_id !== binding?.request_id ||
+                f.frame_revision !== binding?.frame_revision) return
+              if ((e.currentTarget as HTMLImageElement).naturalWidth === 0) {
+                setDecodeFailed(true)
+                return
+              }
+              setDecodeFailed(false)
+              void live.displayed(binding)
+            }}
+            onError={() => { if (!showingStaleCache) setDecodeFailed(true) }}
+          />
+        ) : (
+          <div className="absolute inset-0" aria-label={translate('figpact.statusStale', { ns: 'workspace' })} />
+        )}
+      </div>
+      {(badgeKey || error || stale || decodeFailed || (current && binding?.native_size_changed)) ? (
+        <div data-figpact-status={status}>
+          {badgeKey ? translate(badgeKey, { ns: 'workspace' }) : null}
+          {current && !decodeFailed && binding?.native_size_changed ? translate('figpact.nativeSizeChanged', { ns: 'workspace' }) : null}
+          {decodeFailed ? translate('figpact.imageFailed', { ns: 'workspace' }) : null}
+          {error ? ` ${error}` : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}

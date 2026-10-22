@@ -106,6 +106,23 @@ changes. Panel labels (a)(b)(c) come from one command. Annotations — text, arr
 shapes, at any angle — sit on top, with presets for the usual research furniture:
 reversible-reaction arrows, scale bars, zoom boxes.
 
+### Optional figpact handoff (G2)
+
+The source integration adds explicit figpact controls to the layout toolbar.
+Start `figpact host-session --base <open-project-root> --host-origin <this-page-origin>`,
+then paste its loopback connection string into Connect. Capture sends the
+actual active in-memory document and canvas, including unsaved moves.
+Show Frame displays only explicitly `renderOwner: "figpact"` panels whose
+script, configuration and scope match the trusted render session.
+
+The preview uses figpact's same-capture PNG and Scene, not another execution
+of that figure in Tavotto. Page edits invalidate the old binding. Native-size
+changes are reported without resizing the panel; host overrides are not
+silently replayed or removed. The preview is not a native vector export
+resource or final-page verification. Ordinary panels retain their existing
+workflow. This requires the paired updated frontend; an installed MCP plugin
+alone cannot capture the active page.
+
 ## Your script is still the source
 
 Editing a figure never touches your `.py` file. Every change is stored as an override

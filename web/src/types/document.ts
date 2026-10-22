@@ -163,6 +163,13 @@ export interface PanelObject extends ObjectBase {
   /** 宽高比锁定，缺省 true = 现状的等比联动；显式关掉后 W/H 各改各的。 */
   aspectLocked?: boolean
   /**
+   * 外部托管渲染归属：缺席 = Tavotto  legacy 引擎渲染；`'figpact'` = 仅显式声明的
+   * 托管面板，legacy 调度 / 回退一律跳过。不得从文件名推断，只认显式声明。
+   */
+  renderOwner?: 'figpact'
+  /** 托管面板的显式配置（仅 renderOwner==='figpact' 时有效）：config/scope 原样透传给 host。 */
+  figpact?: { config: string; scope: string }
+  /**
    * 图幅语义的记号（ADR 0098）：`1` = 按「脚本 savefig 的裁切框就是图幅」放上来 / 迁移过。
    * 缺席 = 升级前的面板，读档时由 `lib/figureFrameMigration.migrateFigureFrames` 迁移（必要时补一条
    * `figure.frame = "figsize"`，保持它导出过的样子）。磁盘格式不升版。

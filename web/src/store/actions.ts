@@ -1248,7 +1248,7 @@ async function settledRender(key: string): Promise<void> {
  */
 export async function rebuildPanel(panelId: string): Promise<RebuildOutcome> {
   const panel = findObject(panelId)
-  if (panel?.type !== 'panel' || !panel.script) return 'skipped'
+  if (panel?.type !== 'panel' || !panel.script || panel.renderOwner === 'figpact') return 'skipped'
   try { refuseArtifactOperation(panel) } catch (e) { status(engineErrorMsg(e), 'error'); return 'failed' }
   // 字号还在安静计时里时点「重新构建」：先把那次编辑收进历史，重画的才是定稿的 overrides
   finishActiveGesture()
@@ -1503,7 +1503,7 @@ export function enterElementEdit(
 ) {
   finishActiveGesture()
   const panel = findObject(panelId)
-  if (panel?.type !== 'panel') return false
+  if (panel?.type !== 'panel' || panel.renderOwner === 'figpact') return false
   const issue = artifactValidationIssue(panel)
   if (issue) {
     status(engineErrorMsg(new ArtifactValidationError(issue)), 'error')

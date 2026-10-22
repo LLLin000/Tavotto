@@ -22,6 +22,7 @@ import { TOOLBAR_FIT_CLEARANCE, useViewportStore } from '@/store/viewportStore'
 import { useWorkspaceStore } from '@/store/workspace'
 import { fitStage } from '@/store/zoomToSelection'
 import { PresetsDialog } from './PresetsDialog'
+import { FigpactBridge } from './FigpactBridge'
 import { Button } from './ui/Button'
 import { Menu, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator } from './ui/Menu'
 import { Tip } from './ui/Tooltip'
@@ -241,6 +242,9 @@ function Bar() {
           {label(t('workspace:canvasTools.fit'))}
         </Button>
       </Tip>
+      {/* Figpact live: explicit connect / capture / show-frame / disconnect (G2-B/C) */}
+      <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-border" />
+      <FigpactBridge />
     </div>
   )
 }
