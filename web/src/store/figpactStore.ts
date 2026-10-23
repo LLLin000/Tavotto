@@ -99,6 +99,18 @@ let token: string | null = null
 const instanceId = newId('live')
 let generation = 0
 let requestSeq = 0
+/**
+ * G4-D 重开核验读托管 config 字节：同一条已连接会话的 GET（`hostFetch` 挂
+ * Bearer token）。未连接回 null——调用方按 config 腿 unreadable 计，绝不猜。
+ */
+export async function figpactHostGet(path: string): Promise<unknown> {
+  if (!endpoint || !token) return null
+  try {
+    return await hostFetch(path)
+  } catch {
+    return null
+  }
+}
 /** Configured render target; null denotes a capture-only session. */
 let panelId: string | null = null
 
@@ -154,12 +166,12 @@ async function hostFetch(path: string, body?: unknown): Promise<unknown> {
   return data
 }
 
-async function sha256Hex(data: Uint8Array): Promise<string> {
+export async function sha256Hex(data: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', data as BufferSource)
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-function base64ToBytes(b64: string): Uint8Array {
+export function base64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64)
   const out = new Uint8Array(bin.length)
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)

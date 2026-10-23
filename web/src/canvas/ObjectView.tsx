@@ -1,15 +1,19 @@
 import { memo, useRef, useState, type CSSProperties } from 'react'
+import { panelSrc } from '@/lib/api'
+import { engineTransport } from '@/lib/engineTransport'
+import { pickBucket } from '@/lib/units'
 import { msg, t as translate } from '@/i18n'
 import { perfCount } from '@/perf/core'
 import { useInteractionStore } from '@/store/interactionStore'
 import { useSelectionStore } from '@/store/selectionStore'
-import { beginCrop, enterElementEdit, groupMates } from '@/store/actions'
 import { useUiStore } from '@/store/uiStore'
+import { beginCrop, enterElementEdit, groupMates } from '@/store/actions'
 import { mmToWorld, useViewportStore } from '@/store/viewportStore'
+import { useAssetStore } from '@/store/assetStore'
 import { useProjectStore } from '@/store/projectStore'
 import { useDocumentStore } from '@/store/documentStore'
 import type { CanvasObject, PanelObject } from '@/types/document'
-import { isLinear, objectRotation, panelRotation, rotationSwaps } from '@/types/document'
+import { isLinear, objectRotation, panelFullSize, panelRotation, rotationSwaps } from '@/types/document'
 import { panelContentTransform, panelTransformCss } from '@/lib/panelTransform'
 import { useFigpactStore } from '@/store/figpactStore'
 import { PATH_HIT_SHAPES } from '@/lib/shapeGeometry'
@@ -201,6 +205,25 @@ function FigpactManagedView({ obj }: { obj: PanelObject }) {
   const documentId = useDocumentStore((s) => s.documentId)
   const canvasId = useDocumentStore((s) => s.activeCanvasId)
   const sourceKey = `${projectId ?? ''}|${documentId ?? ''}|${canvasId ?? ''}|${obj.id}|${obj.fileId}|${obj.script ?? ''}|${obj.figpact?.config ?? ''}|${obj.figpact?.scope ?? ''}|${JSON.stringify(obj.overrides)}`
+  const zoom = useViewportStore((s) => s.zoom)
+  // 离线兜底只认页里写明的那个真实文件（与普通面板同一条 panelSrc 链）：
+  // stale 快照只是内存里的上一帧，重开就没了；fileId 仍是 opaque runtime id
+  // 时 asset 无记录 -> null -> 保持空白 + stale 角标，绝不猜一个地址。
+  const dpr = typeof window === 'undefined' ? 1 : (window.devicePixelRatio || 1)
+  const fallbackNeeded = panelFullSize(obj).w * mmToWorld(1) * zoom * dpr
+  const fallbackMtime = useAssetStore((s) => s.byId[obj.fileId]?.mtime)
+  void fallbackMtime
+  const fallbackAsset = useAssetStore.getState().byId[obj.fileId]
+  const fallbackTransport = engineTransport()
+  const fallbackSrc = !current && fallbackAsset
+    ? fallbackTransport
+      ? fallbackTransport.panelSrc(obj.fileId, fallbackAsset.kind, pickBucket(fallbackNeeded), fallbackAsset.mtime)
+      : panelSrc(obj.fileId, fallbackAsset.kind, pickBucket(fallbackNeeded), fallbackAsset.mtime)
+    : null
+  // 兜底与 stale 快照同一份 sourceKey 判陈旧：面板的身份事实（fileId /
+  // script / config / scope / overrides）任一变了，旧 PDF 立刻失效。
+  const [failedFallback, setFailedFallback] = useState<string | null>(null)
+  const fallback = fallbackSrc && failedFallback !== fallbackSrc ? fallbackSrc : null
   const stale = !current || status === 'stale'
   const badgeKey = !current || !frame
     ? 'figpact.statusStale'
@@ -215,11 +238,12 @@ function FigpactManagedView({ obj }: { obj: PanelObject }) {
     ? `data:image/png;base64,${frame.png_base64}`
     : cached
       ? `data:image/png;base64,${cached}`
-      : ''
+      : fallback ?? ''
   const showingStaleCache = !current && !!cached
+  const showingFallback = !current && !cached && !!fallback
   const imgKey = binding && frame && current
     ? `${binding.snapshot_revision}:${binding.request_id}:${binding.frame_revision}`
-    : showingStaleCache ? `stale:${sourceKey}` : ''
+    : showingStaleCache ? `stale:${sourceKey}` : showingFallback ? `prepared:${sourceKey}` : ''
   return (
     <div
       className="absolute inset-0 overflow-hidden"
@@ -228,6 +252,7 @@ function FigpactManagedView({ obj }: { obj: PanelObject }) {
       data-figpact-frame={current ? (frame?.frame_revision ?? null) : null}
       data-figpact-preview={current ? (binding?.preview_ref ?? null) : null}
       data-figpact-scene={current ? (binding?.scene_ref ?? null) : null}
+      data-figpact-offline={showingFallback ? 'prepared' : undefined}
       data-figpact-panel={obj.id}
     >
       <div className="absolute overflow-hidden" style={contentStyle}>
@@ -240,6 +265,8 @@ function FigpactManagedView({ obj }: { obj: PanelObject }) {
             style={{ ...layout, maxWidth: 'none' }}
             draggable={false}
             onLoad={(e) => {
+              // 兜底图不是实时帧：不发 displayed 回执、不碰校验态。
+              if (showingFallback) return
               if (showingStaleCache) return
               const live = useFigpactStore.getState()
               const b = live.binding
@@ -253,15 +280,21 @@ function FigpactManagedView({ obj }: { obj: PanelObject }) {
               setDecodeFailed(false)
               void live.displayed(binding)
             }}
-            onError={() => { if (!showingStaleCache) setDecodeFailed(true) }}
+            onError={() => {
+              // 兜底图取不到（文件被删 / 后端 404）：记下这一个地址换占位，
+              // 身份变了地址跟着变，会重新尝试——不是永久拉黑这块面板。
+              if (showingFallback) { setFailedFallback(fallbackSrc); return }
+              if (!showingStaleCache) setDecodeFailed(true)
+            }}
           />
         ) : (
           <div className="absolute inset-0" aria-label={translate('figpact.statusStale', { ns: 'workspace' })} />
         )}
       </div>
-      {(badgeKey || error || stale || decodeFailed || (current && binding?.native_size_changed)) ? (
+      {(badgeKey || error || stale || decodeFailed || showingFallback || (current && binding?.native_size_changed)) ? (
         <div data-figpact-status={status}>
           {badgeKey ? translate(badgeKey, { ns: 'workspace' }) : null}
+          {showingFallback && !decodeFailed ? translate('figpact.offlinePrepared', { ns: 'workspace' }) : null}
           {current && !decodeFailed && binding?.native_size_changed ? translate('figpact.nativeSizeChanged', { ns: 'workspace' }) : null}
           {decodeFailed ? translate('figpact.imageFailed', { ns: 'workspace' }) : null}
           {error ? ` ${error}` : null}

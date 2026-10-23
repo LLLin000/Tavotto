@@ -248,6 +248,7 @@
     "fillPanel": "填满当前框",
     "fitPanel": "完整放入框内",
     "fixIssue": "修复检查项",
+    "figpactApply": "应用 figpact 批次",
     "fixIssues_other": "修复 {{count}} 个检查项",
     "group": "成组 {{count}} 个对象",
     "hideElements": "隐藏 {{count}} 个图内元素",
@@ -890,6 +891,14 @@
     "errorPrefix": "",
     "frameShown": "已显示帧 {{revision}}…",
     "nativeSizeChanged": "图尺寸变化，版面保持不动。",
-    "imageFailed": "实时图校验失败，请重新抓取。"
+    "imageFailed": "实时图校验失败，请重新抓取。",
+    "offlinePrepared": "已保存的图（非实时），连接后可继续编辑。",
+    "batchApplied": "已应用 figpact 批次（{{count}} 张图）",
+    "batchAlreadyApplied": "该 figpact 批次已应用过",
+    "batchPersisted": "已保存 figpact 批次（{{count}} 张图）",
+    "batchVerified": "已核验 figpact 批次（{{count}} 张图）",
+    "batchConflict": "磁盘已变化，figpact 批次未保存——请先解决冲突",
+    "batchMismatch": "figpact 批次不一致——没有覆盖任何内容",
+    "batchFailed": "figpact 批次失败"
   }
 }

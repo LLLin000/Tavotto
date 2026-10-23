@@ -258,7 +258,7 @@
     "editText": "Edit text",
     "fillPanel": "Fill frame",
     "fitPanel": "Fit inside frame",
-    "fixIssue": "Fix problem",
+    "figpactApply": "Apply figpact batch",
     "fixIssues_one": "Fix {{count}} problem",
     "fixIssues_other": "Fix {{count}} problems",
     "group": "Group {{count}} objects",
@@ -939,6 +939,14 @@
     "errorPrefix": "",
     "frameShown": "Frame {{revision}}… shown",
     "nativeSizeChanged": "Figure size changed; layout kept as-is.",
-    "imageFailed": "Live image failed its check; capture again."
+    "imageFailed": "Live image failed its check; capture again.",
+    "offlinePrepared": "Saved figure (not live); connect to keep editing.",
+    "batchApplied": "Figpact batch applied ({{count}} figures)",
+    "batchAlreadyApplied": "Figpact batch already applied",
+    "batchPersisted": "Figpact batch saved ({{count}} figures)",
+    "batchVerified": "Figpact batch verified ({{count}} figures)",
+    "batchConflict": "Figpact batch not saved — disk changed; resolve the conflict first",
+    "batchMismatch": "Figpact batch mismatch — nothing was overwritten",
+    "batchFailed": "Figpact batch failed"
   }
 }
